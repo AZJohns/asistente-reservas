@@ -458,35 +458,56 @@ async function crearReserva(params) {
 
 
 
-async function buscarReserva(params){
+async function buscarReserva(params) {
 
-    const telefono = validarTelefono(params.telefono);
+    // Valida y normaliza el teléfono. Devuelve { error } o { telefono }.
+    const resultadoTelefono = validarTelefono(params.telefono);
 
-    if ( telefono.error ) {
-        return { error: 'telefono_invalido' };
+    if (resultadoTelefono.error) {
+        return {
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: resultadoTelefono.error // el código que decidió validarTelefono
+        };
+    }
+
+    // A partir de aquí, el teléfono ya limpio (por ejemplo, '612345678').
+    const telefono = resultadoTelefono.telefono;
+
+    if (!params.fecha) {
+        return {
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: 'faltan_datos'
+        };
+    }
+
+    const fechaValida = esFechaReal(params.fecha);
+
+
+
+    if (!fechaValida) {
+        return {
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: 'fecha_invalida'
+        };
     }
 
 
 
     const fecha = aFechaSQL(params.fecha);
-    if(!params.fecha){
-        return { error: 'faltan_datos' };
-    }
 
-
-
-    const fechaValida = esFechaReal(fecha);
-    if(!fechaValida){
-        return { error: 'fecha_invalida' };
-    }
-    // comprobacion de fecha invalida
-
-    if(fechaValida === ' '){
-        return { error: 'fecha_invalida' };
-    }
-
-    if(fecha < hoyEnMadrid()){
-        return { error: 'fecha_pasada' };
+    if (fecha < hoyEnMadrid()) {
+        return {
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: 'fecha_pasada'
+        };
     }
 
 
