@@ -413,7 +413,7 @@ async function crearReserva(params) {
 
         // Bloqueo de la franja: otra petición para la misma fecha+hora espera aquí
         // hasta que esta transacción haga COMMIT o ROLLBACK (se libera solo).
-        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${fecha} ${hora}`]);
+        await client.query('SELECT pg_advisory_xaclt_lock(hashtext($1))', [`${fecha} ${hora}`]);
 
         // Con el bloqueo ya tomado, este conteo no puede quedarse desfasado
         const ocupadas = await plazasOcupadas(client, fecha, hora);
@@ -510,6 +510,43 @@ async function buscarReserva(params) {
         };
     }
 
+// ___________________________
+// Busca la reserva
+//____________________________
+    const queryBuscarReserva = `SELECT hora, personas FROM reservas WHERE telefono = $1 AND fecha = $2 AND estado = 'confirmada'`;
+
+    const resultado = await pool.query(queryBuscarReserva, [telefono, fecha]);
+
+    const fila = resultado.rows[0];
+    
+
+    if (resultado.rows.length === 0) {
+        return {
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: 'reserva_no_encontrada'
+        };
+    }
+    if (!sePuedeCancelar(fecha, fila.hora.slice(0, 5))) {
+        return {
+          
+            reserva_encontrada: false,
+            reserva_hora: null,
+            reserva_personas: null,
+            error: 'cancelacion_fuera_de_plazo'
+        };
+    }
+
+    return {
+        reserva_encontrada: true,
+        reserva_hora: fila.hora.slice(0, 5),
+        reserva_personas: fila.personas,
+        error: null
+    };
+
+
+
 
 }
 
@@ -542,6 +579,10 @@ app.post('/webhook', async (req, res) => {
 
             case 'crear_reserva':
                 respuesta = await crearReserva(params);
+                break;
+
+            case 'buscar_reserva':
+                respuesta = await buscarReserva(params);
                 break;
 
             case 'cancelar_reserva':
