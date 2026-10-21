@@ -1,3 +1,8 @@
+//
+// SERVIDOR WEB: la "ventanilla" que recibe las peticiones de CX
+// webhookff
+//
+
 // ─────────────────────────────────────────────────────────────
 // 1. IMPORTACIONES
 // ─────────────────────────────────────────────────────────────
@@ -12,7 +17,7 @@ import { pool } from './db.js';
 // 2. CREAR LA APLICACIÓN
 // ─────────────────────────────────────────────────────────────
 
-// app es tu servidor: aquí se registran las rutas y la configuración.
+// app es el servidor: aquí se registran las rutas y la configuración.
 const app = express();
 
 // Middleware: algo que se ejecuta en cada petición ANTES de tu ruta.
@@ -126,8 +131,7 @@ function aMinutos(hora) {
     return Number(horaText) * 60 + Number(minutosText);
 }
 
-// funcion de cancelacio
-
+// funcion de cancelacion 
 function sePuedeCancelar(fecha, hora) {
 
     const hoyMadrid = hoyEnMadrid();
@@ -155,7 +159,6 @@ function sePuedeCancelar(fecha, hora) {
 // 5. VALIDACIÓN
 // ─────────────────────────────────────────────────────────────
 
-// Devuelve { error: 'codigo' } si algún dato no vale, o null si todo está bien.
 // El código es para CX (que decide qué frase decir), no para el cliente.
 // Orden: primero lo que impide seguir comprobando, después el resto.
 
@@ -232,10 +235,7 @@ function validarReserva(params) {
 
 
 // Valida y limpia los datos del cliente. Solo la usa crear_reserva.
-// Devuelve { error: 'codigo' } si algo no vale, o
-// { datos: { nombre, telefono, notas } } con los datos ya limpios.
 function validarDatosClientes(params) {
-    // 1) Presencia de los obligatorios. (Tu código, sin cambios.)
     if (!params.nombre || !params.telefono) {
         return { error: 'faltan_datos' };
     }
@@ -243,7 +243,7 @@ function validarDatosClientes(params) {
     // ── NOMBRE ──────────────────────────────────────────────
 
     // CAMBIO: typeof sobre params.nombre (lo que llega), no sobre la
-    // variable nombre, que aún no existe → antes daba ReferenceError.
+    // variable nombre, que aún no existe.
     // CAMBIO: código con guion bajo, como los demás errores.
     if (typeof params.nombre !== 'string') {
         return { error: 'nombre_invalido' };
@@ -273,8 +273,7 @@ function validarDatosClientes(params) {
     let notas = null;
 
     // CAMBIO: typeof sobre params.notas, no sobre notas (que es null
-    // y siempre daba false). Todo lo demás va DENTRO de este if, así
-    // nunca se hace .trim() sobre undefined o null (antes: TypeError).
+    // y siempre daba false). Todo lo demás va DENTRO de este if.
     if (typeof params.notas === 'string') {
         const notasLimpias = params.notas.trim();
 
@@ -290,7 +289,6 @@ function validarDatosClientes(params) {
         }
     }
 
-    // CAMBIO (nuevo): faltaba el return con los datos limpios.
     // { nombre, telefono, notas } es abreviatura de
     // { nombre: nombre, telefono: telefono, notas: notas }.
     return { datos: { nombre, telefono, notas } };
@@ -321,11 +319,6 @@ function validarTelefono(telefono) {
     return { telefono };
 }
 
-
-
-
-
-
 // ─────────────────────────────────────────────────────────────
 // 6. LÓGICA DE CADA ETIQUETA
 // ─────────────────────────────────────────────────────────────+
@@ -340,7 +333,6 @@ async function plazasOcupadas(db, fecha, hora) {
 
 }
 
-
 // IMPORTANTE (formato de respuesta): CX FUSIONA los parámetros que le
 // devolvemos con los que ya tenía la sesión; no los sustituye.
 // Por eso esta función devuelve SIEMPRE las dos claves, error y disponible,
@@ -349,7 +341,7 @@ async function plazasOcupadas(db, fecha, hora) {
 
 // async: la función consulta la base de datos (tarda) y devuelve una promesa.
 async function verificarDisponibilidad(params) {
-    // Antes de nada, comprobamos los datos. Si hay un problema, no
+    // comprobamos los datos. Si hay un problema, no
     // llegamos a consultar la base de datos.
     const problema = validarReserva(params);
     if (problema) {
@@ -367,7 +359,7 @@ async function verificarDisponibilidad(params) {
 
     const ocupadas = await plazasOcupadas(pool, fecha, hora);
 
-    // Hay sitio si las ocupadas más las nuevas no superan la capacidad.
+    // Hay sitio si las ocupadas mas las nuevas no superan la capacidad.
     const disponible = ocupadas + params.personas <= CAPACIDAD_POR_HORA;
 
 
@@ -413,7 +405,7 @@ async function crearReserva(params) {
 
         // Bloqueo de la franja: otra petición para la misma fecha+hora espera aquí
         // hasta que esta transacción haga COMMIT o ROLLBACK (se libera solo).
-        await client.query('SELECT pg_advisory_xaclt_lock(hashtext($1))', [`${fecha} ${hora}`]);
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${fecha} ${hora}`]);
 
         // Con el bloqueo ya tomado, este conteo no puede quedarse desfasado
         const ocupadas = await plazasOcupadas(client, fecha, hora);
@@ -426,7 +418,7 @@ async function crearReserva(params) {
             return { reserva_creada: false, id_reserva: null, error: 'sin_disponibilidad' };
         }
         const resultado = await client.query(
-            `INSEERT INTO reservas (fecha, hora, personas, estado, nombre, telefono, notas)
+            `INSERT INTO reservas (fecha, hora, personas, estado, nombre, telefono, notas)
              VALUES ($1, $2, $3, 'confirmada', $4, $5, $6)
              RETURNING id`,
             [fecha, hora, params.personas, nombre, telefono, notas]
@@ -456,8 +448,6 @@ async function crearReserva(params) {
     }
 }
 
-
-
 async function buscarReserva(params) {
 
     // Valida y normaliza el teléfono. Devuelve { error } o { telefono }.
@@ -486,8 +476,6 @@ async function buscarReserva(params) {
 
     const fechaValida = esFechaReal(params.fecha);
 
-
-
     if (!fechaValida) {
         return {
             reserva_encontrada: false,
@@ -496,8 +484,6 @@ async function buscarReserva(params) {
             error: 'fecha_invalida'
         };
     }
-
-
 
     const fecha = aFechaSQL(params.fecha);
 
@@ -510,15 +496,14 @@ async function buscarReserva(params) {
         };
     }
 
-// ___________________________
-// Busca la reserva
-//____________________________
+    // ___________________________
+    // Busca la reserva
+    //____________________________
     const queryBuscarReserva = `SELECT hora, personas FROM reservas WHERE telefono = $1 AND fecha = $2 AND estado = 'confirmada'`;
 
     const resultado = await pool.query(queryBuscarReserva, [telefono, fecha]);
 
     const fila = resultado.rows[0];
-    
 
     if (resultado.rows.length === 0) {
         return {
@@ -530,27 +515,44 @@ async function buscarReserva(params) {
     }
     if (!sePuedeCancelar(fecha, fila.hora.slice(0, 5))) {
         return {
-          
+
             reserva_encontrada: false,
             reserva_hora: null,
             reserva_personas: null,
             error: 'cancelacion_fuera_de_plazo'
         };
     }
-
     return {
         reserva_encontrada: true,
         reserva_hora: fila.hora.slice(0, 5),
         reserva_personas: fila.personas,
         error: null
     };
-
-
-
-
 }
 
+async function cancelarReserva(params) {
 
+    // llamada a buscarReserva
+    const busqueda_reserva = await buscarReserva(params);
+    if (busqueda_reserva.error) {
+        return { reserva_cancelada: false, error: busqueda_reserva.error };
+    }
+
+    // llamada a validarTelefono
+    const validarTel= validarTelefono(params.telefono);
+   
+    const fecha = aFechaSQL(params.fecha);
+
+    const query = `UPDATE reservas SET estado = 'cancelada' WHERE telefono = $1 AND fecha = $2 AND estado = 'confirmada'`;
+
+    const resultado = await pool.query(query, [validarTel.telefono, fecha]);
+
+    if (resultado.rowCount === 0) {
+        return { reserva_cancelada: false, error: 'reserva_no_encontrada' };
+    }
+
+    return { reserva_cancelada: true, error: null };
+}
 
 // ─────────────────────────────────────────────────────────────
 // 7. LA RUTA: la "ventanilla" que recibe las peticiones de CX
