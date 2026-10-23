@@ -12,3 +12,8 @@ export const pool = new Pool({
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE,
 });
+pool.on('error', (err) => console.error(
+    'Conexión libre del pool de PostgreSQL cerrada:',
+    err.code,
+    err.message
+));
