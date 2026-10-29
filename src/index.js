@@ -68,7 +68,16 @@ function aFechaSQL(fecha) {
 // CX envía la hora como objeto:  { hours: 21, minutes: 0 }
 // PostgreSQL espera un texto:    '21:00'
 function aHoraSQL(hora) {
-    const horas = String(hora.hours).padStart(2, '0');
+
+    let horas24 = hora.hours;
+
+    if (horas24 < 12) {
+        // CX resuelve una hora ambigua («a las dos») como la próxima vez que son esas horas, y puede dar las 02:00.
+        // Como el restaurante solo reserva de 13:00 a 22:30, una hora menor de 12 solo puede ser de tarde o noche: se le suman 12.
+        horas24 += 12;
+    }
+
+    const horas = String(horas24).padStart(2, '0');
 
     // ?? (fusión nula): si minutes no viene (null o undefined), usa 0.
     const minutos = String(hora.minutes ?? 0).padStart(2, '0');
@@ -364,7 +373,7 @@ async function verificarDisponibilidad(params) {
     // Primero los datos: si hay un problema, no se consulta la base de datos.
     const problema = validarReserva(params);
     if (problema) {
-        return { disponible: null, error: problema.error };
+        return { disponible: null, error: problema.error, hora_texto: null };
     }
 
     // Traducimos los datos de CX al formato de la base de datos.
@@ -378,7 +387,7 @@ async function verificarDisponibilidad(params) {
     const disponible = ocupadas + params.personas <= CAPACIDAD_POR_HORA;
 
     // error: null borra en CX cualquier error de un intento anterior.
-    return { disponible, error: null };
+    return { disponible, error: null, hora_texto: hora};
 }
 
 // crear_reserva → { reserva_creada, id_reserva, error }
