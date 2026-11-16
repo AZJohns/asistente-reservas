@@ -65,6 +65,18 @@ function aFechaSQL(fecha) {
     return `${fecha.year}-${mes}-${dia}`;
 }
 
+// fuera de la función: convierte un Date en 'martes, 17 de noviembre'.
+const FORMATO_FECHA = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'
+});
+
+// Recibe 'AAAA-MM-DD' (lo que devuelve aFechaSQL) y devuelve la fecha para decírsela al cliente.
+function aFechaTexto(fechaSQL) {
+    const d = new Date(`${fechaSQL}T00:00:00Z`);
+    return FORMATO_FECHA.format(d);
+}
+
+
 // CX envía la hora como objeto:  { hours: 21, minutes: 0 }
 // PostgreSQL espera un texto:    '21:00'
 function aHoraSQL(hora) {
@@ -373,7 +385,7 @@ async function verificarDisponibilidad(params) {
     // Primero los datos: si hay un problema, no se consulta la base de datos.
     const problema = validarReserva(params);
     if (problema) {
-        return { disponible: null, error: problema.error, hora_texto: null };
+        return { disponible: null, error: problema.error, hora_texto: null, fecha_texto: null };
     }
 
     // Traducimos los datos de CX al formato de la base de datos.
@@ -387,7 +399,7 @@ async function verificarDisponibilidad(params) {
     const disponible = ocupadas + params.personas <= CAPACIDAD_POR_HORA;
 
     // error: null borra en CX cualquier error de un intento anterior.
-    return { disponible, error: null, hora_texto: hora};
+    return { disponible, error: null, hora_texto: hora, fecha_texto: aFechaTexto(fecha) };
 }
 
 // crear_reserva → { reserva_creada, id_reserva, error }
