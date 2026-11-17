@@ -340,6 +340,14 @@ function validarTelefono(telefono) {
     if (telefono.startsWith('+34')) {
         telefono = telefono.slice(3);
     }
+    // O si empieza por 0034 y tiene 13 cifras:
+    if(telefono.startsWith('0034') && telefono.length === 13){
+        telefono = telefono.slice(4);
+    }
+    // O si empieza por 34 y tiene 11 cifras:
+    if(telefono.startsWith('34') && telefono.length === 11){
+        telefono = telefono.slice(2);
+    }
 
     // Se valida el valor YA limpio: 9 cifras empezando por 6, 7, 8 o 9.
     // ^ y $ = el patrón ocupa todo el texto; \d{8} = exactamente 8 cifras más.
