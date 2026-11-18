@@ -341,11 +341,11 @@ function validarTelefono(telefono) {
         telefono = telefono.slice(3);
     }
     // O si empieza por 0034 y tiene 13 cifras:
-    if(telefono.startsWith('0034') && telefono.length === 13){
+    if (telefono.startsWith('0034') && telefono.length === 13) {
         telefono = telefono.slice(4);
     }
     // O si empieza por 34 y tiene 11 cifras:
-    if(telefono.startsWith('34') && telefono.length === 11){
+    if (telefono.startsWith('34') && telefono.length === 11) {
         telefono = telefono.slice(2);
     }
 
@@ -444,6 +444,24 @@ async function crearReserva(params) {
         // hasta que esta transacción haga COMMIT o ROLLBACK (se libera solo).
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${fecha} ${hora}`]);
 
+
+        const reservaExistente = await client.query(
+            `SELECT id, hora, personas FROM reservas
+            WHERE telefono = $1 AND fecha = $2 AND estado = 'confirmada'`,
+            [telefono, fecha]
+        );
+        if (reservaExistente.rows.length > 0) {
+            const r = reservaExistente.rows[0];
+            await client.query('ROLLBACK');   // no se ha escrito nada; cierra la transacción y suelta el bloqueo
+
+            // Misma hora y mismas personas: es una repetición → éxito con el id que ya existe.
+            if (aMinutos(r.hora) === aMinutos(hora) && r.personas === params.personas) {
+                return { reserva_creada: true, id_reserva: r.id, error: null };
+            }
+            // Otros datos: es otra reserva el mismo día → duplicada, como hasta ahora.
+            return  { reserva_creada: false, id_reserva: null, error: 'reserva_duplicada'};
+        }
+
         // Con el bloqueo ya tomado, este conteo no puede quedarse desfasado.
         // client y no pool: la consulta tiene que ir por la conexión de la transacción.
         const ocupadas = await plazasOcupadas(client, fecha, hora);
@@ -458,8 +476,8 @@ async function crearReserva(params) {
         // Consulta parametrizada: los valores van aparte ($1…$6), nunca dentro del texto.
         // RETURNING id: PostgreSQL devuelve el id de la fila recién creada.
         const resultado = await client.query(
-            `INSERT INTO reservas (fecha, hora, personas, estado, nombre, telefono, notas)
-             VALUES ($1, $2, $3, 'confirmada', $4, $5, $6)
+            `INSERT INTO reservas(fecha, hora, personas, estado, nombre, telefono, notas)
+             VALUES($1, $2, $3, 'confirmada', $4, $5, $6)
              RETURNING id`,
             [fecha, hora, params.personas, nombre, telefono, notas]
         );
